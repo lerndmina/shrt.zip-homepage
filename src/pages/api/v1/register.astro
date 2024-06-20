@@ -1,0 +1,89 @@
+---
+import { validateUsername } from "../../../components/LoginForm.astro";
+import { getErrorJSON, Errors } from "../../../components/Errors";
+
+const registerUrl = "https://shrt.zip/api/auth/register";
+
+const request = Astro.request;
+const headers = request.headers;
+
+const method = request.method;
+
+if (method !== "POST") {
+  return respond(getErrorJSON(Errors.BAD_METHOD), { status: 405 });
+}
+
+const formData = await request.formData();
+const username = formData.get("username")?.toString();
+const password = formData.get("password")?.toString();
+const inviteCode = formData.get("inviteCode")?.toString();
+
+const missingFields = {
+  username: !username,
+  password: !password,
+  inviteCode: !inviteCode,
+};
+
+function respond(data: any, init?: ResponseInit): Response {
+  console.log("LOGGING RESPONSE DATA FOR DEBUGGING");
+  console.log(data);
+  return Response.json(data, init);
+}
+
+if (!username || !password || !inviteCode) {
+  return respond(getErrorJSON(Errors.FIELDS_MISSING, { missing: missingFields }), { status: 400 });
+}
+
+if (password.length > 100) {
+  return respond(getErrorJSON(Errors.PASSWORD_TOO_LONG), { status: 400 });
+}
+
+if (password.length < 12) {
+  return respond(getErrorJSON(Errors.PASSWORD_TOO_SHORT), { status: 400 });
+}
+
+const usernameError = validateUsername(username);
+if (usernameError) {
+  // Validate username returns a string if there is an error
+  return respond(getErrorJSON(Errors.USERNAME_INVALID, { usernameError }), { status: 400 });
+}
+
+if (inviteCode.length !== 16) {
+  console.error("Invite code precheck failed, length:", inviteCode.length, "expected 16");
+  return respond(getErrorJSON(Errors.BAD_INVITE), { status: 400 });
+}
+
+const response = await (
+  await fetch(registerUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      username,
+      password,
+      code: inviteCode,
+      administrator: false,
+    }),
+  })
+).json();
+
+if (response.code === 200) {
+  return respond({ success: true }, { status: 200 });
+}
+
+enum ErrorsFromZipline {
+  ENDPOINT_UNAVAILABLE = "This endpoint is unavailable due to current configurations",
+  ALREADY_LOGGED_IN = "Already logged in", // This one should never happen but is documented on the Zipline API
+  BAD_INVITE = "Bad invite",
+  BAD_CREDS = "Bad Username/Password",
+}
+
+if (response.code === 400) {
+  if (response.error === ErrorsFromZipline.BAD_INVITE) {
+    return respond(getErrorJSON(Errors.BAD_INVITE), { status: 400 });
+  } else if (response.error === ErrorsFromZipline.BAD_CREDS) {
+    return respond(getErrorJSON(Errors.BAD_USERNAME_OR_PASSWORD), { status: 400 });
+  }
+}
+---

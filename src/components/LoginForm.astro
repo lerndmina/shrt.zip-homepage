@@ -1,0 +1,163 @@
+---
+export function validateUsername(username: string) {
+  const pattern = /^[a-z0-9]+$/;
+  if (!pattern.test(username)) {
+    return "Username must contain only lowercase letters and numbers.";
+  }
+  if (username.length < 3 || username.length > 16) {
+    return "Username must be between 3 and 16 characters.";
+  }
+  return null;
+}
+---
+
+<form id="registerForm" class="login-form space-content" method="post">
+  <div class="login-form__controls">
+    <label for="username">Username</label>
+    <input id="username" type="text" name="username" />
+    <label style="color: var(--error-500)" id="usernameError" class="error" hidden></label>
+  </div>
+  <div class="login-form__controls">
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" />
+    <label style="color: var(--error-500)" id="passwordError" class="error" hidden></label>
+  </div>
+  <div class="login-form__controls">
+    <label for="inviteCode">Invite Code</label>
+    <input type="text" name="inviteCode" />
+    <label style="color: var(--error-500)" id="inviteCodeError" class="error" hidden></label>
+  </div>
+  <button class="button color-secondary behavior-full" type="submit">Register</button>
+  <a href="https://shrt.zip/auth/login">Already Registered? Login.</a>
+</form>
+
+<script>
+  import { Errors, getKeyByValue } from "./Errors";
+  document.getElementById("registerForm")!.addEventListener("submit", async function (event) {
+    event.preventDefault(); // Prevent traditional form submission
+    const usernameError = document.getElementById("usernameError")!;
+    const passwordError = document.getElementById("passwordError")!;
+    const inviteCodeError = document.getElementById("inviteCodeError")!;
+
+    // Clear previous error messages
+    usernameError.hidden = true;
+    passwordError.hidden = true;
+    inviteCodeError.hidden = true;
+
+    var formData = new FormData(this as HTMLFormElement); // 'this' refers to the form
+
+    try {
+      const response = await fetch("/api/v1/register", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        alert("Registration successful! In future I'd redirect you to the login page.");
+
+        sessionStorage.clear();
+      } else {
+        // Handle server errors or invalid responses
+        const error = (await response.json()).error;
+        console.error(error);
+        if (error.type === getKeyByValue(Errors, Errors.FIELDS_MISSING)) {
+          if (error.missing.username) {
+            usernameError.innerText = "Username is required.";
+            usernameError.hidden = false;
+          }
+          if (error.missing.password) {
+            passwordError.innerText = "Password is required.";
+            passwordError.hidden = false;
+          }
+          if (error.missing.inviteCode) {
+            inviteCodeError.innerText = "Invite code is required.";
+            inviteCodeError.hidden = false;
+          }
+        }
+        if (error.type === getKeyByValue(Errors, Errors.USERNAME_INVALID)) {
+          usernameError.innerText = error.usernameError;
+          usernameError.hidden = false;
+        }
+        if (error.type === getKeyByValue(Errors, Errors.BAD_INVITE)) {
+          inviteCodeError.innerText = error.message;
+          inviteCodeError.hidden = false;
+        }
+        // Handle PASSWORD_TOO_LONG, PASSWORD_TOO_SHORT
+        if (error.type === getKeyByValue(Errors, Errors.PASSWORD_TOO_LONG)) {
+          passwordError.innerText = error.message;
+          passwordError.hidden = false;
+        }
+        if (error.type === getKeyByValue(Errors, Errors.PASSWORD_TOO_SHORT)) {
+          passwordError.innerText = error.message;
+          passwordError.hidden = false;
+        }
+      }
+    } catch (error: any) {
+      // Handle network errors
+      alert(`An unknown error occurred: ${error}`);
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // Restore form values from sessionStorage when the page loads
+    // Exclude password fields or other sensitive information
+    document.querySelectorAll("#registerForm input").forEach((input) => {
+      const savedValue = sessionStorage.getItem(input.name);
+      if (savedValue) {
+        input.value = savedValue;
+      }
+    });
+  });
+
+  document.querySelector("#registerForm")!.addEventListener("input", function (e) {
+    // Save the form field values to sessionStorage on input change
+    const input = e.target;
+    sessionStorage.setItem(input.name, input.value);
+  });
+
+  // Debounce function to delay execution
+  function debounce(func: Function, wait: number) {
+    let timeout: number | undefined;
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+</script>
+
+<style lang="scss" is:global>
+  @use "../assets/scss/base/border" as *;
+  @use "../assets/scss/base/space" as *;
+
+  .login-form {
+    label {
+      display: block;
+      margin-bottom: $space-8;
+    }
+
+    input {
+      width: 100%;
+      background-color: var(--neutral-800);
+      @include radius-small;
+    }
+
+    input {
+      padding: $space-8;
+      border: 2px solid var(--neutral-300);
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: $space-4;
+
+      input {
+        width: auto;
+      }
+    }
+  }
+</style>
