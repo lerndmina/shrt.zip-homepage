@@ -53,9 +53,9 @@ export function validateUsername(username: string) {
       });
 
       if (response.ok) {
-        alert("Registration successful! In future I'd redirect you to the login page.");
-
+        alert("Registration successful! Click OK to be redirected to the login page.");
         sessionStorage.clear();
+        window.location.replace("https://shrt.zip/auth/login");
       } else {
         // Handle server errors or invalid responses
         const error = (await response.json()).error;
